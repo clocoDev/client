@@ -84,6 +84,7 @@ const AddBlog = () => {
       }
     } catch (error) {
       toast.error("Image generation failed")
+      toast.error(error)
       return false
     } finally {
       setIsImageGenerating(false)
