@@ -4,6 +4,7 @@ import Quill from 'quill'
 import { useAppContext } from '../../context/AppContext'
 import toast from 'react-hot-toast'
 import { parse } from 'marked'
+import JSON5 from 'json5'
 
 const AddBlog = () => {
   const { axios } = useAppContext()
@@ -25,12 +26,30 @@ const AddBlog = () => {
   const [isPublished, setIsPublished] = useState(false)
   const [response, setResponse] = useState({})
 
-  const generateImage = async (customSubTitle = subTitle) => {
+  const  extractJsonFromText = async (text) =>
+  {
+    text = text.trim();
+    text = text.replace(/^```(?:json)?/i, '').replace(/```$/gm, '').trim();
+    
+    try
+    {
+      return JSON5.parse(text);
+    }
+    
+    catch (err)
+    {
+      console.error('\nJSON decoding failed, extracted JSON snippet :\n', jsonText);
+      throw err;
+    }
+  }
+  
+
+  const generateImage = async (imgPromptFromSchedule) => {
     // if (!customSubTitle) return toast.error("SubTitle missing for image generation")
     // if (!title) return toast.error("Title missing for image generation !")
-      console.log(response)
-      console.log(response.parsedContent.visual_elements.featured_image.image_prompt)
-      
+    
+    const imgPrompt = response?.parsedContent?.visual_elements?.featured_image?.image_prompt 
+    
 
     try {
       setIsImageGenerating(true)
@@ -69,7 +88,7 @@ const AddBlog = () => {
         
         // Generate the final, detailed prompt that would be sent to an image generation AI (Imagen) based on your analysis.
         // `.trim(),
-        topic : response.parsedContent.visual_elements.featured_image.image_prompt
+        topic : `${imgPrompt} || ${imgPromptFromSchedule}`
       })
 
       if (data.success) {
@@ -84,7 +103,6 @@ const AddBlog = () => {
       }
     } catch (error) {
       toast.error("Image generation failed")
-      toast.error(error)
       return false
     } finally {
       setIsImageGenerating(false)
@@ -117,7 +135,7 @@ const AddBlog = () => {
         metadata: {
             title: 'SEO-optimized title with primary keyword (50-60 characters)',
             meta_description: 'Compelling description with CTA (150-160 characters)',
-            summary: 'Generate a three-sentence summary, with no subheading. It must immediately tell the reader what the article is about, its core argument and what they will learn.',
+            summary: "Generate a three-sentence summary, with no subheading. It must immediately tell the reader what the article is about, its core argument and what they will learn.",
             url_slug: 'seo-friendly-url-slug',
             primary_keyword: 'exact primary keyword',
             secondary_keywords: ['keyword_1', 'keyword_2', 'keyword_3', 'keyword_4', 'keyword_5'],
@@ -239,35 +257,45 @@ const AddBlog = () => {
     }
   `
       })
-      
+
       if (data.success) {
   // Parse the JSON string from API
-  const parsedContent = JSON.parse(data.content)
+  // const parsedContent = JSON5.parse(data.content)
+
+  const parsedContent = await extractJsonFromText(data.content)
 
   setResponse({parsedContent})
 
   const cs = parsedContent.content_structure
 
+  const md = parsedContent.metadata
+
+
   const htmlContent = `
-    <br/>
-    <br/>
+        
+  <br/>
+  <br/>
+  <p>${md.summary}</p>
     <br/>
     <h2>${cs.introduction.heading}</h2>
+    <br/>
     <p>${cs.introduction.paragraph}</p>
         <br/>
     <br/>
-    <br/>
     <h2>${cs.body_content_1.heading}</h2>
+        <br/>
     <p>${cs.body_content_1.paragraph}</p>
         <br/>
     <br/>
-    <br/>
     <h2>${cs.body_content_2.heading}</h2>
+        <br/>
+
     <p>${cs.body_content_2.paragraph}</p>
         <br/>
     <br/>
-    <br/>
     <h2>${cs.conclusion.heading}</h2>
+        <br/>
+
     <p>${cs.conclusion.paragraph}</p>
   `
 
@@ -475,15 +503,20 @@ const AddBlog = () => {
       
       if (data.success) {
   // Parse the JSON string from API
-  const parsedContent = JSON.parse(data.content)
+  const parsedContent = await extractJsonFromText(data.content)
   setResponse({parsedContent})
 
-  console.log(parsedContent)
+  // console.log(parsedContent)
 
   const cs = parsedContent.content_structure
 
+  const md = parsedContent.metadata
+
   const htmlContent = `
-    <br/>
+        
+  <br/>
+  <br/>
+  <p>${md.summary}</p>
     <br/>
     <h2>${cs.introduction.heading}</h2>
     <br/>
@@ -537,7 +570,7 @@ const AddBlog = () => {
       formData.append('blog', JSON.stringify(blog))
       formData.append('image', image)
 
-      const { data } = await axios.post('https://blog-backend.cloco.com.au/api/blog/add', formData)
+      const { data } = await axios.post('/api/blog/add', formData)
 
       if (data.success) {
         toast.success(data.message)
@@ -626,7 +659,7 @@ const AddBlog = () => {
 
         setSubTitle(generatedSubTitle)
 
-       const { data  } = await axios.post('https://blog-backend.cloco.com.au/api/blog/generate', {
+       const { data  } = await axios.post('/api/blog/generate', {
         prompt : `
   You are an expert SEO Content Strategist and AI Blog Architect.
   Your primary task is to generate a complete, structured blog post plan in a single, valid JSON object.
@@ -773,15 +806,21 @@ const AddBlog = () => {
       
       if (data.success) {
   // Parse the JSON string from API
-  const parsedContent = JSON.parse(data.content)
+  const parsedContent = await extractJsonFromText(data.content)
   setResponse({parsedContent})
 
   console.log(parsedContent)
 
   const cs = parsedContent.content_structure
 
+  const md = parsedContent.metadata
+  
+
   const htmlContent = `
-    <br/>
+        
+  <br/>
+  <br/>
+  <p>${md.summary}</p>
     <br/>
     <h2>${cs.introduction.heading}</h2>
     <br/>
@@ -812,7 +851,9 @@ const AddBlog = () => {
 
         // quillRef.current.root.innerHTML = parse(aiBlogResponse.content)
 
-        const success = await generateImage()
+        const imgPrompt = parsedContent.visual_elements.featured_image.image_prompt
+
+        const success = await generateImage(imgPrompt)
         if (!success) return
 
         setCategory('Technology')
